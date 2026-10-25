@@ -4,7 +4,8 @@ export function initTabs() {
   const views = {
     inventario: document.getElementById("view-inventario"),
     vender: document.getElementById("view-vender"),
-    historial: document.getElementById("view-historial")
+    historial: document.getElementById("view-historial"),
+    ganancias: document.getElementById("view-ganancias")
   };
   const buttons = document.querySelectorAll("nav.tabs button");
   buttons.forEach(btn => {

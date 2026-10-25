@@ -5,10 +5,11 @@ import { db } from "./firebase.js";
 import {
   collection, addDoc, updateDoc, deleteDoc, doc, onSnapshot, query, orderBy, serverTimestamp
 } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-firestore.js";
-import { fmtCOP, fmtLitros, fmtMl, escapeHtml } from "./format.js";
+import { fmtCOP, fmtMl, escapeHtml, costoDe } from "./format.js";
 import { setSyncState } from "./ui.js";
 
 export const inventarioCol = collection(db, "inventario");
+export const comprasCol = collection(db, "compras");
 
 const LOW_ML = 300;
 let inventario = [];
@@ -21,12 +22,32 @@ function notifyListeners() { listeners.forEach(cb => cb(inventario)); }
 const $ = id => document.getElementById(id);
 const estadoDe = p => (p.ml <= 0 ? "agotado" : p.ml < LOW_ML ? "bajo" : "disponible");
 const ESTADO_TXT = { disponible: "Disponible", bajo: "Stock bajo", agotado: "Agotado" };
-const safeUrl = u => (/^https?:\/\//i.test(u || "") ? u : "");
+const safeUrl = u => (/^(https?:\/\/|data:image\/)/i.test(u || "") ? u : "");
+
+// Reduce la foto (máx. 600 px, JPEG) para guardarla dentro del documento de Firestore sin costo extra.
+function comprimirImagen(file, max = 600, calidad = 0.78) {
+  return new Promise((res, rej) => {
+    const img = new Image(), url = URL.createObjectURL(file);
+    img.onload = () => {
+      const r = Math.min(1, max / Math.max(img.width, img.height));
+      const c = document.createElement("canvas");
+      c.width = Math.round(img.width * r); c.height = Math.round(img.height * r);
+      const ctx = c.getContext("2d");
+      ctx.fillStyle = "#fff"; ctx.fillRect(0, 0, c.width, c.height);
+      ctx.drawImage(img, 0, 0, c.width, c.height);
+      URL.revokeObjectURL(url);
+      res(c.toDataURL("image/jpeg", calidad));
+    };
+    img.onerror = () => { URL.revokeObjectURL(url); rej(new Error("No se pudo leer la imagen")); };
+    img.src = url;
+  });
+}
 
 const BOTTLE = `<svg class="bottle-ico" viewBox="0 0 24 24" fill="none" aria-hidden="true">
   <path d="M10 3h4v2.6c1.4.5 2.4 1.8 2.4 3.4v9a3 3 0 0 1-3 3h-2.8a3 3 0 0 1-3-3V9c0-1.6 1-2.9 2.4-3.4V3Z" stroke="currentColor" stroke-width="1.2" stroke-linejoin="round"/>
   <path d="M9.6 12.5h4.8" stroke="currentColor" stroke-width="1.2" stroke-linecap="round"/></svg>`;
 const ICON_EDIT = `<svg viewBox="0 0 24 24" fill="none"><path d="M4 20h4L19 9l-4-4L4 16v4Z" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"/></svg>`;
+const ICON_BUY = `<svg viewBox="0 0 24 24" fill="none"><path d="M12 5v14M5 12h14" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg>`;
 const ICON_DEL = `<svg viewBox="0 0 24 24" fill="none"><path d="M5 7h14M10 7V4h4v3M7 7l1 13h8l1-13" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>`;
 
 export function initInventario() {
@@ -36,6 +57,7 @@ export function initInventario() {
   let modo = "cards";
   let editId = null;
   let deleteId = null;
+  let fotoActual = "";
 
   setSyncState("connecting");
   onSnapshot(query(inventarioCol, orderBy("nombre")), { includeMetadataChanges: true }, snap => {
@@ -62,7 +84,7 @@ export function initInventario() {
 
   function renderStats() {
     $("statReferencias").textContent = inventario.length.toLocaleString("es-CO");
-    $("statUnidades").textContent = fmtLitros(inventario.reduce((s, p) => s + (p.ml || 0), 0)) + " L";
+    $("statUnidades").textContent = fmtMl(inventario.reduce((s, p) => s + (p.ml || 0), 0)) + " ml";
     $("statValor").textContent = fmtCOP(inventario.reduce((s, p) => s + (p.ml || 0) * (p.precioPorMl || 0), 0));
     $("statBajoStock").textContent = inventario.filter(p => p.ml < LOW_ML).length;
   }
@@ -78,6 +100,7 @@ export function initInventario() {
 
   const foto = p => safeUrl(p.foto) ? `<img src="${escapeHtml(p.foto)}" alt="${escapeHtml(p.nombre)}" loading="lazy">` : BOTTLE;
   const acciones = p => `<div class="row-actions">
+    <button class="icon-btn" data-act="buy" data-id="${p.id}" title="Registrar compra" aria-label="Registrar compra de ${escapeHtml(p.nombre)}">${ICON_BUY}</button>
     <button class="icon-btn" data-act="edit" data-id="${p.id}" aria-label="Editar ${escapeHtml(p.nombre)}">${ICON_EDIT}</button>
     <button class="icon-btn danger" data-act="del" data-id="${p.id}" aria-label="Eliminar ${escapeHtml(p.nombre)}">${ICON_DEL}</button></div>`;
 
@@ -113,9 +136,9 @@ export function initInventario() {
             <h3 class="name">${escapeHtml(p.nombre)}</h3>
             <p class="brand-line">${p.marca ? escapeHtml(p.marca) : "&nbsp;"}</p>
             <dl>
-              <div><dt>Existencias</dt><dd class="${e !== "disponible" ? "low" : ""}">${fmtLitros(p.ml)} L <small>· ${fmtMl(p.ml)} ml</small></dd></div>
+              <div><dt>Existencias</dt><dd class="${e !== "disponible" ? "low" : ""}">${fmtMl(p.ml)} ml</dd></div>
               <div><dt>Venta / ml</dt><dd>${fmtCOP(p.precioPorMl)}</dd></div>
-              ${p.precioCompraPorMl != null ? `<div><dt>Compra / ml</dt><dd>${fmtCOP(p.precioCompraPorMl)}</dd></div>` : ""}
+              ${costoDe(p) != null ? `<div><dt>Costo / ml</dt><dd>${fmtCOP(costoDe(p))}</dd></div>` : ""}
             </dl>
             ${acciones(p)}
           </div></article>`;
@@ -126,8 +149,8 @@ export function initInventario() {
       tbody.innerHTML = lista.map(p => {
         const e = estadoDe(p);
         return `<tr><td><b>${escapeHtml(p.nombre)}</b></td><td>${p.marca ? escapeHtml(p.marca) : "—"}</td>
-          <td class="num">${fmtLitros(p.ml)} L <small>· ${fmtMl(p.ml)} ml</small></td>
-          <td class="num">${p.precioCompraPorMl != null ? fmtCOP(p.precioCompraPorMl) : "—"}</td>
+          <td class="num">${fmtMl(p.ml)} ml</td>
+          <td class="num">${costoDe(p) != null ? fmtCOP(costoDe(p)) : "—"}</td>
           <td class="num">${fmtCOP(p.precioPorMl)}</td>
           <td><span class="badge inline ${e}">${ESTADO_TXT[e]}</span></td><td>${acciones(p)}</td></tr>`;
       }).join("");
@@ -150,6 +173,7 @@ export function initInventario() {
     if (!p) return;
     if (b.dataset.act === "edit") abrirModal(p);
     if (b.dataset.act === "del") abrirConfirm(p);
+    if (b.dataset.act === "buy") document.dispatchEvent(new CustomEvent("comprar", { detail: p }));
   });
 
   // ---------- Modal agregar / editar ----------
@@ -161,15 +185,32 @@ export function initInventario() {
     $("modalTitle").textContent = p ? "Editar perfume" : "Nuevo perfume";
     $("fNombre").value = p ? p.nombre : "";
     $("fMarca").value = p?.marca || "";
-    $("fLitros").value = p ? p.ml / 1000 : "";
+    $("fLitros").value = p ? p.ml : "";
     $("fPrecioVenta").value = p ? p.precioPorMl : "";
-    $("fPrecioCompra").value = p?.precioCompraPorMl ?? "";
-    $("fFoto").value = p?.foto || "";
+    $("fPrecioCompra").value = p && costoDe(p) != null ? Math.round(costoDe(p) * 100) / 100 : "";
+    $("lblCosto").textContent = p ? "Costo por ml (opcional)" : "Total pagado por esos ml (opcional)";
+    $("fFoto").value = "";
+    fotoActual = p?.foto || "";
+    pintarFoto(); pintarResumenStock();
     msgEl("modalMsg", "err", "");
     $("modalBackdrop").hidden = false;
     $("fNombre").focus();
   }
-  function cerrarModal() { $("modalBackdrop").hidden = true; campos.forEach(id => ($(id).value = "")); editId = null; }
+  function cerrarModal() { $("modalBackdrop").hidden = true; campos.forEach(id => ($(id).value = "")); editId = null; fotoActual = ""; pintarFoto(); pintarResumenStock(); }
+  function pintarFoto() { const prev = $("fFotoPrev"); prev.hidden = !fotoActual; prev.querySelector("img").src = fotoActual; }
+  function pintarResumenStock() {
+    const m = parseFloat($("fLitros").value), v = parseFloat($("fPrecioVenta").value);
+    $("fResumenStock").textContent = (m > 0 && v > 0) ? `Con ${fmtMl(m)} ml a ${fmtCOP(v)} por ml, este stock vale ${fmtCOP(m * v)} si se vende completo.` : "";
+  }
+  $("fLitros").addEventListener("input", pintarResumenStock);
+  $("fPrecioVenta").addEventListener("input", pintarResumenStock);
+  $("fFotoQuitar").addEventListener("click", () => { fotoActual = ""; $("fFoto").value = ""; pintarFoto(); });
+  $("fFoto").addEventListener("change", async () => {
+    const f = $("fFoto").files[0];
+    if (!f) return;
+    try { fotoActual = await comprimirImagen(f); pintarFoto(); msgEl("modalMsg", "err", ""); }
+    catch (e) { msgEl("modalMsg", "err", "No se pudo cargar la imagen. Prueba con otra (JPG o PNG)."); }
+  });
 
   $("openAddPerfume").addEventListener("click", () => abrirModal());
   $("modalCancel").addEventListener("click", cerrarModal);
@@ -177,26 +218,31 @@ export function initInventario() {
 
   $("modalSave").addEventListener("click", async () => {
     const nombre = $("fNombre").value.trim();
-    const litros = parseFloat($("fLitros").value);
+    const mlIn = parseFloat($("fLitros").value);
     const precio = parseFloat($("fPrecioVenta").value);
     const compraRaw = $("fPrecioCompra").value.trim();
     const compra = compraRaw === "" ? null : parseFloat(compraRaw);
-    const url = $("fFoto").value.trim();
+    const url = fotoActual;
 
-    if (!nombre || isNaN(litros) || litros < 0 || isNaN(precio) || precio < 0) {
-      return msgEl("modalMsg", "err", "Completa nombre, litros y precio de venta con valores válidos.");
+    if (!nombre || isNaN(mlIn) || mlIn < 0 || isNaN(precio) || precio < 0) {
+      return msgEl("modalMsg", "err", "Completa nombre, mililitros y precio de venta con valores válidos.");
     }
     if (compra !== null && (isNaN(compra) || compra < 0)) return msgEl("modalMsg", "err", "El precio de compra no es válido.");
-    if (url && !safeUrl(url)) return msgEl("modalMsg", "err", "La foto debe ser una URL que empiece por http:// o https://");
 
     const data = {
-      nombre, marca: $("fMarca").value.trim(), ml: Math.round(litros * 1000),
-      precioPorMl: Math.round(precio), precioCompraPorMl: compra === null ? null : Math.round(compra), foto: url
+      nombre, marca: $("fMarca").value.trim(), ml: Math.round(mlIn),
+      precioPorMl: Math.round(precio), foto: url,
+      costoPromedioPorMl: compra === null ? null : editId ? compra : (mlIn > 0 ? compra / mlIn : null)
     };
     $("modalSave").disabled = true;
     try {
       if (editId) await updateDoc(doc(db, "inventario", editId), data);
-      else await addDoc(inventarioCol, { ...data, creadoEn: serverTimestamp() });
+      else {
+        const ref = await addDoc(inventarioCol, { ...data, creadoEn: serverTimestamp() });
+        if (compra > 0 && mlIn > 0) {
+          await addDoc(comprasCol, { fecha: serverTimestamp(), perfumeId: ref.id, nombre, cantidadMl: Math.round(mlIn), totalPagado: Math.round(compra) });
+        }
+      }
       cerrarModal();
     } catch (e) {
       msgEl("modalMsg", "err", "No se pudo guardar: " + e.message);

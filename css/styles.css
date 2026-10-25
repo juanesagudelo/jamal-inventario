@@ -174,3 +174,15 @@ tbody tr:last-child td{border-bottom:none}
   .stat-value{font-size:24px}
   .sync span:last-child{display:none}
 }
+
+.hint{font-size:13px;color:var(--gold);margin:-4px 0 16px}
+.hint:empty{display:none}
+.foto-prev{display:flex;align-items:center;gap:12px;margin-top:8px}
+.foto-prev img{width:64px;height:64px;object-fit:cover;border-radius:8px;border:1px solid var(--line)}
+.foto-prev .btn{padding:8px 14px;font-size:13px}
+input[type=file]{padding:9px 10px;font-size:13px;color:var(--muted)}
+
+.badge.entrada{color:var(--gold);border-color:var(--gold-dim)}
+#view-ganancias .stats-grid{grid-template-columns:repeat(3,1fr)}
+@media (max-width:600px){#view-ganancias .stats-grid{grid-template-columns:1fr}}
+#gNota{margin:0 0 16px}

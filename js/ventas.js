@@ -5,8 +5,8 @@ import { db } from "./firebase.js";
 import {
   doc, collection, onSnapshot, query, orderBy, runTransaction, serverTimestamp
 } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-firestore.js";
-import { fmtCOP, fmtMl, fmtFecha, escapeHtml } from "./format.js";
-import { getInventario, onInventarioChange } from "./inventario.js";
+import { fmtCOP, fmtMl, fmtFecha, escapeHtml, costoDe } from "./format.js";
+import { getInventario, onInventarioChange, comprasCol } from "./inventario.js";
 
 const ventasCol = collection(db, "ventas");
 const $ = id => document.getElementById(id);
@@ -75,7 +75,7 @@ function initFormularioVenta() {
 
         tx.update(ref, { ml: data.ml - cantidadMl });
         const total = cantidadMl * data.precioPorMl;
-        tx.set(doc(ventasCol), { fecha: serverTimestamp(), perfumeId, nombre: data.nombre, cantidadMl, total });
+        tx.set(doc(ventasCol), { fecha: serverTimestamp(), perfumeId, nombre: data.nombre, cantidadMl, total, costoPorMl: costoDe(data) });
         return { nombre: data.nombre, total };
       });
 
@@ -91,35 +91,45 @@ function initFormularioVenta() {
 }
 
 // ---------- Historial ----------
+let ventasData = [], comprasData = [];
+const movListeners = [];
+export const getMovimientos = () => ({ ventas: ventasData, compras: comprasData });
+export function onMovimientos(cb) { movListeners.push(cb); }
+
 function initHistorial() {
   const body = $("ventasBody");
-  let ventas = [];
+  const ts = x => (x.fecha?.toDate ? x.fecha.toDate().getTime() : Date.now());
 
   function render() {
     const q = $("buscarHistorial").value.trim().toLowerCase();
+    const tipo = $("filtroTipo").value;
     const d = $("fechaDesde").value ? new Date($("fechaDesde").value + "T00:00:00") : null;
     const h = $("fechaHasta").value ? new Date($("fechaHasta").value + "T23:59:59.999") : null;
-    const lista = ventas.filter(v => {
+    const todos = [
+      ...ventasData.map(v => ({ ...v, tipo: "venta" })),
+      ...comprasData.map(c => ({ ...c, tipo: "entrada", total: c.totalPagado }))
+    ].sort((a, b) => ts(b) - ts(a));
+    const lista = todos.filter(v => {
       const f = v.fecha?.toDate ? v.fecha.toDate() : null;
-      return (!q || (v.nombre || "").toLowerCase().includes(q)) &&
+      return (tipo === "todos" || v.tipo === tipo) &&
+        (!q || (v.nombre || "").toLowerCase().includes(q)) &&
         (!d || (f && f >= d)) && (!h || (f && f <= h));
     });
     if (lista.length === 0) {
-      body.innerHTML = `<tr><td colspan="5" class="empty">${ventas.length ? "No hay movimientos con esos filtros." : "Todavía no hay ventas registradas."}</td></tr>`;
+      body.innerHTML = `<tr><td colspan="5" class="empty">${todos.length ? "No hay movimientos con esos filtros." : "Todavía no hay movimientos registrados."}</td></tr>`;
       return;
     }
     body.innerHTML = lista.map(v => `<tr>
       <td>${fmtFecha(v.fecha)}</td>
       <td>${escapeHtml(v.nombre ?? "—")}</td>
-      <td><span class="badge inline venta">Venta</span></td>
+      <td><span class="badge inline ${v.tipo}">${v.tipo === "venta" ? "Venta" : "Entrada"}</span></td>
       <td class="num">${v.cantidadMl != null ? fmtMl(v.cantidadMl) : "—"}</td>
       <td class="num">${fmtCOP(v.total ?? 0)}</td></tr>`).join("");
   }
 
-  onSnapshot(query(ventasCol, orderBy("fecha", "desc")), snap => {
-    ventas = snap.docs.map(x => x.data());
-    render();
-  }, err => console.error(err));
+  const avisar = () => { render(); movListeners.forEach(cb => cb()); };
+  onSnapshot(query(ventasCol, orderBy("fecha", "desc")), snap => { ventasData = snap.docs.map(x => x.data()); avisar(); }, err => console.error(err));
+  onSnapshot(query(comprasCol, orderBy("fecha", "desc")), snap => { comprasData = snap.docs.map(x => x.data()); avisar(); }, err => console.error(err));
 
-  ["buscarHistorial", "fechaDesde", "fechaHasta"].forEach(id => $(id).addEventListener("input", render));
+  ["buscarHistorial", "filtroTipo", "fechaDesde", "fechaHasta"].forEach(id => $(id).addEventListener("input", render));
 }

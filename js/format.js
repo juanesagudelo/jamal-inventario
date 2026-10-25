@@ -26,3 +26,8 @@ export function escapeHtml(s) {
     { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]
   ));
 }
+
+// Costo por ml de un perfume (promedio de sus compras); null si no se ha registrado.
+export function costoDe(p) {
+  return p.costoPromedioPorMl ?? p.precioCompraPorMl ?? null;
+}

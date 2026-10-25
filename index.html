@@ -22,6 +22,7 @@
     <button data-view="inventario" class="active">Inventario</button>
     <button data-view="vender">Vender</button>
     <button data-view="historial">Historial</button>
+    <button data-view="ganancias">Ganancias</button>
   </nav>
 </header>
 
@@ -63,7 +64,7 @@
     <div class="grid-cards" id="inventoryGrid"></div>
     <div class="panel flush" id="inventoryTableWrap" hidden>
       <div class="table-wrap"><table>
-        <thead><tr><th>Nombre</th><th>Marca</th><th class="num">Existencias</th><th class="num">Compra / ml</th><th class="num">Venta / ml</th><th>Estado</th><th></th></tr></thead>
+        <thead><tr><th>Nombre</th><th>Marca</th><th class="num">Existencias</th><th class="num">Costo / ml</th><th class="num">Venta / ml</th><th>Estado</th><th></th></tr></thead>
         <tbody id="inventoryTableBody"></tbody>
       </table></div>
     </div>
@@ -97,12 +98,30 @@
         <svg viewBox="0 0 24 24" fill="none"><circle cx="11" cy="11" r="7" stroke="currentColor" stroke-width="1.6"/><path d="m20 20-3.5-3.5" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg>
         <input id="buscarHistorial" type="text" placeholder="Buscar por perfume…">
       </div>
+      <select id="filtroTipo" aria-label="Tipo de movimiento"><option value="todos">Todos los movimientos</option><option value="venta">Ventas</option><option value="entrada">Entradas (compras)</option></select>
       <div class="field inline"><label for="fechaDesde">Desde</label><input id="fechaDesde" type="date"></div>
       <div class="field inline"><label for="fechaHasta">Hasta</label><input id="fechaHasta" type="date"></div>
     </div>
     <div class="panel flush"><div class="table-wrap"><table>
       <thead><tr><th>Fecha</th><th>Perfume</th><th>Movimiento</th><th class="num">ml</th><th class="num">Total</th></tr></thead>
       <tbody id="ventasBody"><tr><td colspan="5" class="empty">Cargando historial…</td></tr></tbody>
+    </table></div></div>
+  </section>
+  <section id="view-ganancias" hidden>
+    <div class="section-head"><h2>Ganancias</h2><p>Lo que has vendido, lo que te costó y lo que te queda.</p></div>
+    <div class="toolbar">
+      <div class="field inline"><label for="gDesde">Desde</label><input id="gDesde" type="date"></div>
+      <div class="field inline"><label for="gHasta">Hasta</label><input id="gHasta" type="date"></div>
+    </div>
+    <div class="stats-grid">
+      <div class="stat-card"><span class="stat-label">Ventas</span><span class="stat-value" id="gIngresos">$0</span></div>
+      <div class="stat-card"><span class="stat-label">Ganancia</span><span class="stat-value" id="gGanancia">$0</span><span class="stat-note" id="gMargen"></span></div>
+      <div class="stat-card"><span class="stat-label">Compras</span><span class="stat-value" id="gCompras">$0</span><span class="stat-note">lo que has invertido</span></div>
+    </div>
+    <p class="hint" id="gNota"></p>
+    <div class="panel flush"><div class="table-wrap"><table>
+      <thead><tr><th>Perfume</th><th class="num">ml vendidos</th><th class="num">Ventas</th><th class="num">Ganancia</th></tr></thead>
+      <tbody id="gBody"><tr><td colspan="4" class="empty">Cargando…</td></tr></tbody>
     </table></div></div>
   </section>
 </main>
@@ -113,15 +132,30 @@
     <div class="field"><label for="fNombre">Nombre</label><input id="fNombre" type="text" placeholder="Ej. Dior Sauvage"></div>
     <div class="field"><label for="fMarca">Marca (opcional)</label><input id="fMarca" type="text" placeholder="Ej. Dior"></div>
     <div class="field-grid">
-      <div class="field"><label for="fLitros">Litros disponibles</label><input id="fLitros" type="number" min="0" step="0.1" placeholder="Ej. 2,5"></div>
-      <div class="field"><label for="fPrecioVenta">Precio venta / ml (COP)</label><input id="fPrecioVenta" type="number" min="0" step="1" placeholder="Ej. 9000"></div>
+      <div class="field"><label for="fLitros">Mililitros disponibles (ml)</label><input id="fLitros" type="number" min="0" step="1" placeholder="Ej. 100"></div>
+      <div class="field"><label for="fPrecioVenta">Precio de venta por ml (COP)</label><input id="fPrecioVenta" type="number" min="0" step="1" placeholder="Ej. 1800"></div>
     </div>
     <div class="field-grid">
-      <div class="field"><label for="fPrecioCompra">Precio compra / ml (opcional)</label><input id="fPrecioCompra" type="number" min="0" step="1" placeholder="Ej. 5000"></div>
-      <div class="field"><label for="fFoto">Foto — URL (opcional)</label><input id="fFoto" type="url" placeholder="https://…"></div>
+      <div class="field"><label for="fPrecioCompra" id="lblCosto">Total pagado por esos ml (opcional)</label><input id="fPrecioCompra" type="number" min="0" step="1" placeholder="Ej. 60000"></div>
+      <div class="field"><label for="fFoto">Foto (opcional)</label><input id="fFoto" type="file" accept="image/*"><div class="foto-prev" id="fFotoPrev" hidden><img alt="Vista previa"><button type="button" class="btn btn-ghost" id="fFotoQuitar">Quitar</button></div></div>
     </div>
+    <p class="hint" id="fResumenStock"></p>
     <div class="actions"><button class="btn btn-gold" id="modalSave">Guardar</button><button class="btn btn-ghost" id="modalCancel">Cancelar</button></div>
     <div class="msg" id="modalMsg" hidden></div>
+  </div>
+</div>
+
+<div class="modal-backdrop" id="compraBackdrop" hidden>
+  <div class="modal small" role="dialog" aria-modal="true" aria-labelledby="compraTitle">
+    <h3 id="compraTitle">Registrar compra</h3>
+    <p class="sub" id="compraNombre"></p>
+    <div class="field-grid">
+      <div class="field"><label for="cMl">Mililitros comprados</label><input id="cMl" type="number" min="1" step="1" placeholder="Ej. 1000"></div>
+      <div class="field"><label for="cTotal">Total pagado (COP)</label><input id="cTotal" type="number" min="0" step="1" placeholder="Ej. 600000"></div>
+    </div>
+    <p class="hint" id="cResumen"></p>
+    <div class="actions"><button class="btn btn-gold" id="compraSave">Registrar</button><button class="btn btn-ghost" id="compraCancel">Cancelar</button></div>
+    <div class="msg" id="compraMsg" hidden></div>
   </div>
 </div>
 
