@@ -40,7 +40,7 @@
       <div class="stat-card"><span class="stat-label">Referencias</span><span class="stat-value" id="statReferencias">0</span></div>
       <div class="stat-card"><span class="stat-label">Unidades disponibles</span><span class="stat-value" id="statUnidades">0 L</span></div>
       <div class="stat-card"><span class="stat-label">Valor del inventario</span><span class="stat-value" id="statValor">$0</span><span class="stat-note">lo que te costó el stock</span></div>
-      <button type="button" class="stat-card stat-btn" data-detail="bajo" aria-expanded="false"><span class="stat-label">Existencias bajas</span><span class="stat-value" id="statBajoStock">0</span><span class="stat-note">menos de 300 ml · ver lista</span></button>
+      <button type="button" class="stat-card stat-btn" data-detail="bajo" aria-expanded="false"><span class="stat-label">Existencias bajas</span><span class="stat-value" id="statBajoStock">0</span><span class="stat-note">menos de 50 ml · ver lista</span></button>
     </div>
 
     <div class="panel detail" id="statDetail" hidden></div>
@@ -136,27 +136,29 @@
     <div class="field"><label for="fNombre">Nombre</label><input id="fNombre" type="text" placeholder="Ej. Dior Sauvage"></div>
     <div class="field"><label for="fMarca">Marca (opcional)</label><input id="fMarca" type="text" placeholder="Ej. Dior"></div>
     <div class="field-grid">
-      <div class="field"><label for="fLitros">Mililitros disponibles (ml)</label><input id="fLitros" type="number" min="0" step="1" placeholder="Ej. 100"></div>
-      <div class="field"><label for="fPrecioCompra">Total pagado (COP)</label><input id="fPrecioCompra" type="text" inputmode="numeric" autocomplete="off" placeholder="Ej. $60.000"></div>
+      <div class="field"><label for="fLitros">Mililitros comprados/hechos (ml)</label><input id="fLitros" type="number" min="0" step="1" placeholder="Ej. 100"></div>
+      <div class="field"><label for="fPrecioCompra">Total pagado (COP) · opcional</label><input id="fPrecioCompra" type="text" inputmode="numeric" autocomplete="off" placeholder="Ej. $60.000"></div>
     </div>
     <div class="field-grid">
-      <div class="field"><label for="fFoto">Foto (opcional)</label><input id="fFoto" type="file" accept="image/*"><div class="foto-prev" id="fFotoPrev" hidden><img alt="Vista previa"><button type="button" class="btn btn-ghost" id="fFotoQuitar">Quitar</button></div></div>
+      <div class="field"><label>Materiales · opcional</label><div class="mat-list" id="materiales"></div><button type="button" class="btn btn-ghost btn-sm" id="addMaterial">+ Agregar material</button></div>
     </div>
-    <p class="hint" id="fResumenStock"></p>
+    <div class="total-box"><span>Total</span><b id="fTotalBox">$0</b></div>
     <div class="actions"><button class="btn btn-gold" id="modalSave">Guardar</button><button class="btn btn-ghost" id="modalCancel">Cancelar</button></div>
     <div class="msg" id="modalMsg" hidden></div>
   </div>
 </div>
 
 <div class="modal-backdrop" id="compraBackdrop" hidden>
-  <div class="modal small" role="dialog" aria-modal="true" aria-labelledby="compraTitle">
+  <div class="modal" role="dialog" aria-modal="true" aria-labelledby="compraTitle">
     <h3 id="compraTitle">Registrar compra</h3>
     <p class="sub" id="compraNombre"></p>
     <div class="field-grid">
-      <div class="field"><label for="cMl">Mililitros comprados</label><input id="cMl" type="number" min="1" step="1" placeholder="Ej. 1000"></div>
-      <div class="field"><label for="cTotal">Total pagado (COP)</label><input id="cTotal" type="text" inputmode="numeric" autocomplete="off" placeholder="Ej. $600.000"></div>
+      <div class="field"><label for="cMl">Mililitros comprados/hechos (ml)</label><input id="cMl" type="number" min="1" step="1" placeholder="Ej. 1000"></div>
+      <div class="field"><label for="cTotal">Total pagado (COP) · opcional</label><input id="cTotal" type="text" inputmode="numeric" autocomplete="off" placeholder="Ej. $600.000"></div>
     </div>
-    <p class="hint" id="cResumen"></p>
+    <div class="field"><label>Materiales · opcional</label><div class="mat-list" id="cMateriales"></div><button type="button" class="btn btn-ghost btn-sm" id="cAddMaterial">+ Agregar material</button></div>
+    <div class="total-box"><span>Total de esta compra</span><b id="cTotalBox">$0</b></div>
+    <p class="note" id="cResumen"></p>
     <div class="actions"><button class="btn btn-gold" id="compraSave">Registrar</button><button class="btn btn-ghost" id="compraCancel">Cancelar</button></div>
     <div class="msg" id="compraMsg" hidden></div>
   </div>

@@ -11,7 +11,7 @@ import { setSyncState } from "./ui.js";
 export const inventarioCol = collection(db, "inventario");
 export const comprasCol = collection(db, "compras");
 
-const LOW_ML = 300;
+const LOW_ML = 50;
 let inventario = [];
 const listeners = [];
 
@@ -24,30 +24,13 @@ const estadoDe = p => (p.ml <= 0 ? "agotado" : p.ml < LOW_ML ? "bajo" : "disponi
 const ESTADO_TXT = { disponible: "Disponible", bajo: "Stock bajo", agotado: "Agotado" };
 const safeUrl = u => (/^(https?:\/\/|data:image\/)/i.test(u || "") ? u : "");
 
-// Reduce la foto (máx. 600 px, JPEG) para guardarla dentro del documento de Firestore sin costo extra.
-function comprimirImagen(file, max = 600, calidad = 0.78) {
-  return new Promise((res, rej) => {
-    const img = new Image(), url = URL.createObjectURL(file);
-    img.onload = () => {
-      const r = Math.min(1, max / Math.max(img.width, img.height));
-      const c = document.createElement("canvas");
-      c.width = Math.round(img.width * r); c.height = Math.round(img.height * r);
-      const ctx = c.getContext("2d");
-      ctx.fillStyle = "#fff"; ctx.fillRect(0, 0, c.width, c.height);
-      ctx.drawImage(img, 0, 0, c.width, c.height);
-      URL.revokeObjectURL(url);
-      res(c.toDataURL("image/jpeg", calidad));
-    };
-    img.onerror = () => { URL.revokeObjectURL(url); rej(new Error("No se pudo leer la imagen")); };
-    img.src = url;
-  });
-}
 
 const BOTTLE = `<svg class="bottle-ico" viewBox="0 0 24 24" fill="none" aria-hidden="true">
   <path d="M10 3h4v2.6c1.4.5 2.4 1.8 2.4 3.4v9a3 3 0 0 1-3 3h-2.8a3 3 0 0 1-3-3V9c0-1.6 1-2.9 2.4-3.4V3Z" stroke="currentColor" stroke-width="1.2" stroke-linejoin="round"/>
   <path d="M9.6 12.5h4.8" stroke="currentColor" stroke-width="1.2" stroke-linecap="round"/></svg>`;
 const ICON_EDIT = `<svg viewBox="0 0 24 24" fill="none"><path d="M4 20h4L19 9l-4-4L4 16v4Z" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"/></svg>`;
 const ICON_BUY = `<svg viewBox="0 0 24 24" fill="none"><path d="M12 5v14M5 12h14" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg>`;
+const ICON_X = `<svg viewBox="0 0 24 24" fill="none"><path d="M6 6l12 12M18 6 6 18" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg>`;
 const ICON_DEL = `<svg viewBox="0 0 24 24" fill="none"><path d="M5 7h14M10 7V4h4v3M7 7l1 13h8l1-13" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>`;
 
 export function initInventario() {
@@ -58,7 +41,7 @@ export function initInventario() {
   let detalle = null; // "valor" | "bajo" | null: panel desplegable bajo las estadísticas
   let editId = null;
   let deleteId = null;
-  let fotoActual = "";
+  let costoTocado = false; // true si en la edición se cambió el total o los materiales
 
   setSyncState("connecting");
   onSnapshot(query(inventarioCol, orderBy("nombre")), { includeMetadataChanges: true }, snap => {
@@ -139,7 +122,7 @@ export function initInventario() {
             <p class="brand-line">${p.marca ? escapeHtml(p.marca) : "&nbsp;"}</p>
             <dl>
               <div><dt>Existencias</dt><dd class="${e !== "disponible" ? "low" : ""}">${fmtMl(p.ml)} ml</dd></div>
-              ${costoDe(p) != null ? `<div><dt>Costo del stock</dt><dd>${fmtCOP(Math.round(p.ml * costoDe(p)))}</dd></div>` : ""}
+              <div><dt>Costo del stock</dt><dd>${fmtCOP(Math.round(p.ml * (costoDe(p) || 0)))}</dd></div>
             </dl>
             ${acciones(p)}
           </div></article>`;
@@ -151,7 +134,7 @@ export function initInventario() {
         const e = estadoDe(p);
         return `<tr><td><b>${escapeHtml(p.nombre)}</b></td><td>${p.marca ? escapeHtml(p.marca) : "—"}</td>
           <td class="num">${fmtMl(p.ml)} ml</td>
-          <td class="num">${costoDe(p) != null ? fmtCOP(Math.round(p.ml * costoDe(p))) : "—"}</td>
+          <td class="num">${fmtCOP(Math.round(p.ml * (costoDe(p) || 0)))}</td>
           <td><span class="badge inline ${e}">${ESTADO_TXT[e]}</span></td><td>${acciones(p)}</td></tr>`;
       }).join("");
       grid.hidden = true;
@@ -197,7 +180,7 @@ export function initInventario() {
   });
 
   // ---------- Modal agregar / editar ----------
-  const campos = ["fNombre", "fMarca", "fLitros", "fPrecioCompra", "fFoto"];
+  const campos = ["fNombre", "fMarca", "fLitros", "fPrecioCompra"];
   const msgEl = (id, type, text) => { const el = $(id); el.hidden = !text; el.className = "msg " + type; el.textContent = text || ""; };
 
   function abrirModal(p = null) {
@@ -206,29 +189,57 @@ export function initInventario() {
     $("fNombre").value = p ? p.nombre : "";
     $("fMarca").value = p?.marca || "";
     $("fLitros").value = p ? p.ml : "";
-    $("fPrecioCompra").value = p && costoDe(p) != null ? fmtMoneyInput(p.ml * costoDe(p)) : "";
-    $("fFoto").value = "";
-    fotoActual = p?.foto || "";
-    pintarFoto(); pintarResumenStock();
+    $("fPrecioCompra").value = p && costoDe(p) != null && !p.materiales?.length ? fmtMoneyInput(p.ml * costoDe(p)) : "";
+    $("materiales").innerHTML = "";
+    (p?.materiales?.length ? p.materiales : [{}]).forEach(x => agregarMaterial(x));
+    costoTocado = false; pintarTotal();
+    
     msgEl("modalMsg", "err", "");
     $("modalBackdrop").hidden = false;
     $("fNombre").focus();
   }
-  function cerrarModal() { $("modalBackdrop").hidden = true; campos.forEach(id => ($(id).value = "")); editId = null; fotoActual = ""; pintarFoto(); pintarResumenStock(); }
-  function pintarFoto() { const prev = $("fFotoPrev"); prev.hidden = !fotoActual; prev.querySelector("img").src = fotoActual; }
-  function pintarResumenStock() {
-    const m = parseFloat($("fLitros").value), v = parseMoney($("fPrecioCompra").value);
-    $("fResumenStock").textContent = (m > 0 && v > 0) ? `Cada ml te cuesta ${fmtCOP(v / m)}.` : "";
+  function cerrarModal() {
+    $("modalBackdrop").hidden = true;
+    campos.forEach(id => ($(id).value = ""));
+    $("materiales").innerHTML = "";
+    editId = null; costoTocado = false; pintarTotal();
+    
   }
-  $("fLitros").addEventListener("input", pintarResumenStock);
+  // Total que se muestra: el que escribes en "Total pagado" o, si está vacío, la suma de los materiales (0 si no hay nada).
+  function pintarTotal() {
+    const c = parseMoney($("fPrecioCompra").value);
+    const suma = leerFilasMateriales().reduce((t, f) => t + (isNaN(f.precio) ? 0 : f.precio), 0);
+    $("fTotalBox").textContent = fmtCOP(!isNaN(c) ? c : suma);
+  }
+  function agregarMaterial(m = {}) {
+    const row = document.createElement("div");
+    row.className = "mat-row";
+    row.innerHTML = `<input class="mat-nombre" type="text" maxlength="60" placeholder="Material (ej. Esencia)">
+      <input class="mat-precio" type="text" inputmode="numeric" autocomplete="off" placeholder="Precio $">
+      <button type="button" class="icon-btn mat-del" aria-label="Quitar material">${ICON_X}</button>`;
+    row.querySelector(".mat-nombre").value = m.nombre || "";
+    const pr = row.querySelector(".mat-precio");
+    pr.value = m.precio ? fmtMoneyInput(m.precio) : "";
+    moneyInput(pr);
+    $("materiales").appendChild(row);
+  }
+  const leerFilasMateriales = () => [...document.querySelectorAll("#materiales .mat-row")].map(r => ({
+    nombre: r.querySelector(".mat-nombre").value.trim(),
+    precio: parseMoney(r.querySelector(".mat-precio").value)
+  }));
   moneyInput($("fPrecioCompra"));
-  $("fPrecioCompra").addEventListener("input", pintarResumenStock);
-  $("fFotoQuitar").addEventListener("click", () => { fotoActual = ""; $("fFoto").value = ""; pintarFoto(); });
-  $("fFoto").addEventListener("change", async () => {
-    const f = $("fFoto").files[0];
-    if (!f) return;
-    try { fotoActual = await comprimirImagen(f); pintarFoto(); msgEl("modalMsg", "err", ""); }
-    catch (e) { msgEl("modalMsg", "err", "No se pudo cargar la imagen. Prueba con otra (JPG o PNG)."); }
+  $("fPrecioCompra").addEventListener("input", () => { costoTocado = true; pintarTotal();  });
+  $("materiales").addEventListener("input", () => { costoTocado = true; pintarTotal();  });
+  $("materiales").addEventListener("click", e => {
+    const b = e.target.closest(".mat-del");
+    if (!b) return;
+    b.closest(".mat-row").remove();
+    if (!$("materiales").children.length) agregarMaterial();
+    costoTocado = true; pintarTotal(); 
+  });
+  $("addMaterial").addEventListener("click", () => {
+    agregarMaterial();
+    $("materiales").lastElementChild.querySelector(".mat-nombre").focus();
   });
 
   $("openAddPerfume").addEventListener("click", () => abrirModal());
@@ -238,19 +249,19 @@ export function initInventario() {
   $("modalSave").addEventListener("click", async () => {
     const nombre = $("fNombre").value.trim();
     const mlIn = parseFloat($("fLitros").value);
-    const compra = parseMoney($("fPrecioCompra").value);
-    const url = fotoActual;
+    const compraIn = parseMoney($("fPrecioCompra").value);
+    const filas = leerFilasMateriales();
+    if (filas.some(f => !f.nombre && !isNaN(f.precio))) return msgEl("modalMsg", "err", "Escribe el nombre de cada material que tenga precio.");
+    const mats = filas.filter(f => f.nombre).map(f => ({ nombre: f.nombre, precio: isNaN(f.precio) ? 0 : f.precio }));
+    const sumMat = mats.reduce((s, f) => s + f.precio, 0);
+    const compra = !isNaN(compraIn) ? compraIn : (sumMat > 0 ? sumMat : null);
 
-    if (!nombre || isNaN(mlIn) || mlIn < 0 || isNaN(compra) || compra < 0) {
-      return msgEl("modalMsg", "err", "Completa nombre, mililitros y el valor pagado.");
-    }
-    if (!editId && mlIn <= 0) return msgEl("modalMsg", "err", "Ingresa los ml que compraste.");
+    if (!nombre || isNaN(mlIn) || mlIn < 0) return msgEl("modalMsg", "err", "Completa el nombre y los mililitros.");
 
     const data = {
-      nombre, marca: $("fMarca").value.trim(), ml: Math.round(mlIn),
-      foto: url
+      nombre, marca: $("fMarca").value.trim(), ml: Math.round(mlIn), materiales: mats
     };
-    if (mlIn > 0) data.costoPromedioPorMl = compra / mlIn;
+    if (mlIn > 0 && compra != null && (!editId || costoTocado)) data.costoPromedioPorMl = compra / mlIn;
     $("modalSave").disabled = true;
     try {
       if (editId) await updateDoc(doc(db, "inventario", editId), data);

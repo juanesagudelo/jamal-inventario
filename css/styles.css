@@ -205,3 +205,16 @@ input[type=file]{padding:9px 10px;font-size:13px;color:var(--muted)}
 .detail-list li.total{border-top:1px solid var(--gold-dim)}
 .detail-list li.total .num{color:var(--gold);font-family:var(--serif);font-size:20px}
 @media (max-width:600px){.detail-list li,.detail-list.v li{grid-template-columns:1fr auto}.detail-list .calc{grid-column:1/-1;order:3}}
+
+.mat-list{display:flex;flex-direction:column;gap:10px}
+.mat-row{display:grid;grid-template-columns:1fr 1fr auto;gap:10px;align-items:center}
+.mat-row .icon-btn{width:40px;height:40px}
+.btn-sm{padding:8px 14px;font-size:13px;align-self:flex-start}
+
+.total-box{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:4px;text-align:center;background:var(--bg2);border:1px solid var(--gold-dim);border-radius:10px;padding:20px 18px;margin:6px 0 20px}
+.total-box span{font-size:11px;letter-spacing:.14em;text-transform:uppercase;color:var(--muted)}
+.total-box b{font-family:var(--serif);font-weight:500;font-size:44px;line-height:1.1;color:var(--ink);font-variant-numeric:tabular-nums}
+.note{font-size:13px;color:var(--muted);margin:-10px 0 16px}
+.note:empty{display:none}
+
+.mat-row:first-child .mat-del{visibility:hidden}
