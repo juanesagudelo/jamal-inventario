@@ -97,6 +97,8 @@ function initFormularioVenta() {
 }
 
 // ---------- Historial ----------
+const ICON_EDIT = `<svg viewBox="0 0 24 24" fill="none"><path d="M4 20h4L19 9l-4-4L4 16v4Z" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"/></svg>`;
+const ICON_DEL = `<svg viewBox="0 0 24 24" fill="none"><path d="M5 7h14M10 7V4h4v3M7 7l1 13h8l1-13" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>`;
 let ventasData = [], comprasData = [];
 const movListeners = [];
 export const getMovimientos = () => ({ ventas: ventasData, compras: comprasData });
@@ -122,7 +124,7 @@ function initHistorial() {
         (!d || (f && f >= d)) && (!h || (f && f <= h));
     });
     if (lista.length === 0) {
-      body.innerHTML = `<tr><td colspan="5" class="empty">${todos.length ? "No hay movimientos con esos filtros." : "Todavía no hay movimientos registrados."}</td></tr>`;
+      body.innerHTML = `<tr><td colspan="6" class="empty">${todos.length ? "No hay movimientos con esos filtros." : "Todavía no hay movimientos registrados."}</td></tr>`;
       return;
     }
     body.innerHTML = lista.map(v => `<tr>
@@ -130,12 +132,30 @@ function initHistorial() {
       <td>${escapeHtml(v.nombre ?? "—")}</td>
       <td><span class="badge inline ${v.tipo}">${v.tipo === "venta" ? "Venta" : "Entrada"}</span></td>
       <td class="num">${v.cantidadMl != null ? fmtMl(v.cantidadMl) : "—"}</td>
-      <td class="num">${fmtCOP(v.total ?? 0)}</td></tr>`).join("");
+      <td class="num">${fmtCOP(v.total ?? 0)}</td>
+      <td><div class="row-actions">
+        <button class="icon-btn" data-act="edit" data-tipo="${v.tipo}" data-id="${v.id}" aria-label="Editar movimiento">${ICON_EDIT}</button>
+        <button class="icon-btn danger" data-act="del" data-tipo="${v.tipo}" data-id="${v.id}" aria-label="Eliminar movimiento">${ICON_DEL}</button>
+      </div></td></tr>`).join("");
   }
 
   const avisar = () => { render(); movListeners.forEach(cb => cb()); };
-  onSnapshot(query(ventasCol, orderBy("fecha", "desc")), snap => { ventasData = snap.docs.map(x => x.data()); avisar(); }, err => console.error(err));
-  onSnapshot(query(comprasCol, orderBy("fecha", "desc")), snap => { comprasData = snap.docs.map(x => x.data()); avisar(); }, err => console.error(err));
+  onSnapshot(query(ventasCol, orderBy("fecha", "desc")), snap => { ventasData = snap.docs.map(x => ({ id: x.id, ...x.data() })); avisar(); }, err => console.error(err));
+  onSnapshot(query(comprasCol, orderBy("fecha", "desc")), snap => { comprasData = snap.docs.map(x => ({ id: x.id, ...x.data() })); avisar(); }, err => console.error(err));
 
   ["buscarHistorial", "filtroTipo", "fechaDesde", "fechaHasta"].forEach(id => $(id).addEventListener("input", render));
+
+  // Filtros rápidos de fecha: Todo, Hoy, Esta semana (desde el lunes) y Este mes.
+  const iso = d => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+  const marcarChip = r => document.querySelectorAll("#view-historial .chip").forEach(b => b.classList.toggle("active", b.dataset.rango === r));
+  document.querySelectorAll("#view-historial .chip").forEach(b => b.addEventListener("click", () => {
+    const hoy = new Date(), r = b.dataset.rango;
+    let d = "", h = "";
+    if (r === "hoy") d = h = iso(hoy);
+    else if (r === "semana") { const lun = new Date(hoy); lun.setDate(hoy.getDate() - ((hoy.getDay() + 6) % 7)); d = iso(lun); h = iso(hoy); }
+    else if (r === "mes") { d = iso(new Date(hoy.getFullYear(), hoy.getMonth(), 1)); h = iso(hoy); }
+    $("fechaDesde").value = d; $("fechaHasta").value = h;
+    marcarChip(r); render();
+  }));
+  ["fechaDesde", "fechaHasta"].forEach(id => $(id).addEventListener("input", () => marcarChip(null)));
 }

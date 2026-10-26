@@ -106,9 +106,15 @@
       <div class="field inline"><label for="fechaDesde">Desde</label><input id="fechaDesde" type="date"></div>
       <div class="field inline"><label for="fechaHasta">Hasta</label><input id="fechaHasta" type="date"></div>
     </div>
+    <div class="chips">
+      <button type="button" class="chip active" data-rango="todo">Todo</button>
+      <button type="button" class="chip" data-rango="hoy">Hoy</button>
+      <button type="button" class="chip" data-rango="semana">Esta semana</button>
+      <button type="button" class="chip" data-rango="mes">Este mes</button>
+    </div>
     <div class="panel flush"><div class="table-wrap"><table>
-      <thead><tr><th>Fecha</th><th>Perfume</th><th>Movimiento</th><th class="num">ml</th><th class="num">Total</th></tr></thead>
-      <tbody id="ventasBody"><tr><td colspan="5" class="empty">Cargando historial…</td></tr></tbody>
+      <thead><tr><th>Fecha</th><th>Perfume</th><th>Movimiento</th><th class="num">ml</th><th class="num">Total</th><th></th></tr></thead>
+      <tbody id="ventasBody"><tr><td colspan="6" class="empty">Cargando historial…</td></tr></tbody>
     </table></div></div>
   </section>
   <section id="view-ganancias" hidden>
@@ -117,15 +123,25 @@
       <div class="field inline"><label for="gDesde">Desde</label><input id="gDesde" type="date"></div>
       <div class="field inline"><label for="gHasta">Hasta</label><input id="gHasta" type="date"></div>
     </div>
+    <div class="chips">
+      <button type="button" class="chip active" data-rango="todo">Todo</button>
+      <button type="button" class="chip" data-rango="hoy">Hoy</button>
+      <button type="button" class="chip" data-rango="semana">Esta semana</button>
+      <button type="button" class="chip" data-rango="mes">Este mes</button>
+    </div>
     <div class="stats-grid">
       <div class="stat-card"><span class="stat-label">Ventas</span><span class="stat-value" id="gIngresos">$0</span></div>
       <div class="stat-card"><span class="stat-label">Ganancia</span><span class="stat-value" id="gGanancia">$0</span><span class="stat-note" id="gMargen"></span></div>
       <div class="stat-card"><span class="stat-label">Compras</span><span class="stat-value" id="gCompras">$0</span><span class="stat-note">lo que has invertido</span></div>
     </div>
     <p class="hint" id="gNota"></p>
+    <div class="rank-grid">
+      <div class="panel"><h3 id="gTopTitulo">Más vendidos del mes</h3><p class="sub">Los que mejor se mueven este mes.</p><ul class="rank-list" id="gTop"></ul></div>
+      <div class="panel"><h3 id="gBajoTitulo">Menos vendidos del mes</h3><p class="sub">Con stock y poca salida: candidatos para una promoción.</p><ul class="rank-list" id="gBajo"></ul></div>
+    </div>
     <div class="panel flush"><div class="table-wrap"><table>
-      <thead><tr><th>Perfume</th><th class="num">ml vendidos</th><th class="num">Ventas</th><th class="num">Ganancia</th></tr></thead>
-      <tbody id="gBody"><tr><td colspan="4" class="empty">Cargando…</td></tr></tbody>
+      <thead><tr><th>Perfume</th><th class="num">ml vendidos</th><th class="num">Ventas</th><th class="num">Ganancia</th><th class="num">Margen</th></tr></thead>
+      <tbody id="gBody"><tr><td colspan="5" class="empty">Cargando…</td></tr></tbody>
     </table></div></div>
   </section>
 </main>
@@ -157,10 +173,32 @@
       <div class="field"><label for="cTotal">Total pagado (COP) · opcional</label><input id="cTotal" type="text" inputmode="numeric" autocomplete="off" placeholder="Ej. $600.000"></div>
     </div>
     <div class="field"><label>Materiales · opcional</label><div class="mat-list" id="cMateriales"></div><button type="button" class="btn btn-ghost btn-sm" id="cAddMaterial">+ Agregar material</button></div>
-    <div class="total-box"><span>Total de esta compra</span><b id="cTotalBox">$0</b></div>
+    <div class="total-box"><span>Total</span><b id="cTotalBox">$0</b></div>
     <p class="note" id="cResumen"></p>
     <div class="actions"><button class="btn btn-gold" id="compraSave">Registrar</button><button class="btn btn-ghost" id="compraCancel">Cancelar</button></div>
     <div class="msg" id="compraMsg" hidden></div>
+  </div>
+</div>
+
+<div class="modal-backdrop" id="movBackdrop" hidden>
+  <div class="modal small" role="dialog" aria-modal="true" aria-labelledby="movTitle">
+    <h3 id="movTitle">Editar venta</h3>
+    <div class="field"><label for="mPerfume">Perfume</label><select id="mPerfume"></select></div>
+    <div class="field-grid">
+      <div class="field"><label for="mMl">Mililitros (ml)</label><input id="mMl" type="number" min="1" step="1"></div>
+      <div class="field"><label for="mTotal" id="mTotalLbl">Precio cobrado (COP)</label><input id="mTotal" type="text" inputmode="numeric" autocomplete="off"></div>
+    </div>
+    <div class="actions"><button class="btn btn-gold" id="movSave">Guardar</button><button class="btn btn-ghost" id="movCancel">Cancelar</button></div>
+    <div class="msg" id="movMsg" hidden></div>
+  </div>
+</div>
+
+<div class="modal-backdrop" id="movDelBackdrop" hidden>
+  <div class="modal small" role="alertdialog" aria-modal="true" aria-labelledby="movDelTitle">
+    <h3 id="movDelTitle">Eliminar venta</h3>
+    <p id="movDelText" class="sub"></p>
+    <div class="actions"><button class="btn btn-danger" id="movDelOk">Eliminar</button><button class="btn btn-ghost" id="movDelCancel">Cancelar</button></div>
+    <div class="msg" id="movDelMsg" hidden></div>
   </div>
 </div>
 

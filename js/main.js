@@ -4,9 +4,11 @@ import { initInventario } from "./inventario.js";
 import { initVentas } from "./ventas.js";
 import { initCompras } from "./compras.js";
 import { initGanancias } from "./ganancias.js";
+import { initMovimientos } from "./movimientos.js";
 
 initTabs();
 initInventario();
 initVentas();
 initCompras();
 initGanancias();
+initMovimientos();
