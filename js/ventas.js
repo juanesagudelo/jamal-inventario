@@ -5,7 +5,7 @@ import { db } from "./firebase.js";
 import {
   doc, collection, onSnapshot, query, orderBy, runTransaction, serverTimestamp
 } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-firestore.js";
-import { fmtCOP, fmtMl, fmtFecha, escapeHtml, costoDe } from "./format.js";
+import { fmtCOP, fmtMl, fmtFecha, escapeHtml, costoDe, moneyInput, parseMoney } from "./format.js";
 import { getInventario, onInventarioChange, comprasCol } from "./inventario.js";
 
 const ventasCol = collection(db, "ventas");
@@ -18,6 +18,7 @@ export function initVentas() {
 
 // ---------- Vender ----------
 function initFormularioVenta() {
+  moneyInput($("precioVenta"));
   const sel = $("selPerfume"), ml = $("mlVender"), buscar = $("buscarVenta"), btn = $("registrarVenta");
 
   function renderSelector() {
@@ -35,13 +36,15 @@ function initFormularioVenta() {
 
   function renderResumen() {
     const p = getInventario().find(x => x.id === sel.value);
-    const cant = parseFloat(ml.value);
-    const ok = p && !isNaN(cant) && cant > 0;
+    const cant = parseFloat(ml.value), precio = parseMoney($("precioVenta").value);
+    const ok = p && cant > 0 && precio >= 0;
+    const costo = p ? costoDe(p) : null;
     $("resPerfume").textContent = p ? p.nombre : "—";
     $("resDisp").textContent = p ? `${fmtMl(p.ml)} ml` : "—";
-    $("resPrecio").textContent = p ? fmtCOP(p.precioPorMl) : "$0";
-    $("resCantidad").textContent = ok ? `${fmtMl(cant)} ml` : "0 ml";
-    $("estimateTotal").textContent = ok ? fmtCOP(cant * p.precioPorMl) : "$0";
+    $("resCantidad").textContent = cant > 0 ? `${fmtMl(cant)} ml` : "0 ml";
+    $("resPrecio").textContent = ok ? fmtCOP(precio / cant) : "$0";
+    $("estimateTotal").textContent = ok ? fmtCOP(precio) : "$0";
+    $("resGanancia").textContent = ok && costo != null ? fmtCOP(precio - cant * costo) : "—";
   }
 
   onInventarioChange(renderSelector);
@@ -49,6 +52,7 @@ function initFormularioVenta() {
   buscar.addEventListener("input", renderSelector);
   sel.addEventListener("change", renderResumen);
   ml.addEventListener("input", renderResumen);
+  $("precioVenta").addEventListener("input", renderResumen);
 
   function showMsg(type, text) {
     const el = $("ventaMsg");
@@ -59,9 +63,11 @@ function initFormularioVenta() {
     showMsg("ok", "");
     const perfumeId = sel.value;
     const cantidadMl = parseInt(ml.value, 10);
+    const precio = parseMoney($("precioVenta").value);
 
     if (!perfumeId) return showMsg("err", "Selecciona un perfume disponible para vender.");
     if (!cantidadMl || cantidadMl <= 0) return showMsg("err", "Ingresa una cantidad válida en ml.");
+    if (isNaN(precio) || precio < 0) return showMsg("err", "Ingresa el precio cobrado por esta venta.");
 
     btn.disabled = true;
     try {
@@ -74,13 +80,13 @@ function initFormularioVenta() {
         if (data.ml < cantidadMl) throw new Error(`No hay suficiente perfume. Disponible: ${fmtMl(data.ml)} ml.`);
 
         tx.update(ref, { ml: data.ml - cantidadMl });
-        const total = cantidadMl * data.precioPorMl;
+        const total = Math.round(precio);
         tx.set(doc(ventasCol), { fecha: serverTimestamp(), perfumeId, nombre: data.nombre, cantidadMl, total, costoPorMl: costoDe(data) });
         return { nombre: data.nombre, total };
       });
 
       showMsg("ok", `Venta registrada: ${resultado.nombre} — ${fmtCOP(resultado.total)}.`);
-      ml.value = "";
+      ml.value = ""; $("precioVenta").value = "";
       renderResumen();
     } catch (e) {
       showMsg("err", e.message);

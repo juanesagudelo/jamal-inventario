@@ -1,7 +1,7 @@
 // Registro de compras (entradas): suma ml al stock y recalcula el costo promedio por ml.
 import { db } from "./firebase.js";
 import { doc, runTransaction, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-firestore.js";
-import { fmtCOP, fmtMl, costoDe } from "./format.js";
+import { fmtCOP, fmtMl, costoDe, moneyInput, parseMoney } from "./format.js";
 import { getInventario, comprasCol } from "./inventario.js";
 
 const $ = id => document.getElementById(id);
@@ -13,6 +13,7 @@ function costoNuevo(ml, costoPrev, m, total) {
 
 export function initCompras() {
   let perfumeId = null;
+  moneyInput($("cTotal"));
   const msg = (type, text) => { const el = $("compraMsg"); el.hidden = !text; el.className = "msg " + type; el.textContent = text || ""; };
   const cerrar = () => {
     $("compraBackdrop").hidden = true; perfumeId = null;
@@ -21,7 +22,7 @@ export function initCompras() {
 
   function resumen() {
     const p = getInventario().find(x => x.id === perfumeId);
-    const m = parseInt($("cMl").value, 10), t = parseFloat($("cTotal").value);
+    const m = parseInt($("cMl").value, 10), t = parseMoney($("cTotal").value);
     if (!p || !(m > 0) || isNaN(t) || t < 0) { $("cResumen").textContent = ""; return; }
     $("cResumen").textContent = `Esta compra: ${fmtCOP(t / m)} por ml. El stock quedará en ${fmtMl(p.ml + m)} ml, con costo promedio de ${fmtCOP(costoNuevo(p.ml, costoDe(p), m, t))} por ml.`;
   }
@@ -38,7 +39,7 @@ export function initCompras() {
   document.addEventListener("keydown", e => { if (e.key === "Escape" && !$("compraBackdrop").hidden) cerrar(); });
 
   $("compraSave").addEventListener("click", async () => {
-    const m = parseInt($("cMl").value, 10), t = parseFloat($("cTotal").value);
+    const m = parseInt($("cMl").value, 10), t = parseMoney($("cTotal").value);
     if (!perfumeId) return;
     if (!(m > 0)) return msg("err", "Ingresa los ml comprados.");
     if (isNaN(t) || t < 0) return msg("err", "Ingresa el total pagado.");

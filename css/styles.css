@@ -186,3 +186,22 @@ input[type=file]{padding:9px 10px;font-size:13px;color:var(--muted)}
 #view-ganancias .stats-grid{grid-template-columns:repeat(3,1fr)}
 @media (max-width:600px){#view-ganancias .stats-grid{grid-template-columns:1fr}}
 #gNota{margin:0 0 16px}
+
+.field-grid>.field:only-child{grid-column:1/-1}
+
+.stat-btn{font:inherit;color:inherit;text-align:left;cursor:pointer;width:100%;appearance:none}
+.stat-btn:hover,.stat-btn[aria-expanded=true]{border-color:var(--gold)}
+.stat-btn .stat-note::after{content:" ▾"}
+.stat-btn[aria-expanded=true] .stat-note::after{content:" ▴"}
+.detail{margin:-8px 0 28px;animation:fade .25s}
+.detail h3{font-size:20px;margin-bottom:6px}
+.detail .sub{margin:0 0 6px;max-width:640px}
+.detail .hint{margin:14px 0 0}
+.detail-list{list-style:none;margin:12px 0 0;padding:0}
+.detail-list li{display:grid;grid-template-columns:1fr auto auto auto;gap:16px;align-items:center;padding:12px 0;border-top:1px solid var(--line);font-size:14px}
+.detail-list.v li{grid-template-columns:1fr auto auto}
+.detail-list small{display:block;color:var(--muted);font-size:12px}
+.detail-list .calc{color:var(--muted);font-size:13px;white-space:nowrap}
+.detail-list li.total{border-top:1px solid var(--gold-dim)}
+.detail-list li.total .num{color:var(--gold);font-family:var(--serif);font-size:20px}
+@media (max-width:600px){.detail-list li,.detail-list.v li{grid-template-columns:1fr auto}.detail-list .calc{grid-column:1/-1;order:3}}

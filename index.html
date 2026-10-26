@@ -39,9 +39,11 @@
     <div class="stats-grid">
       <div class="stat-card"><span class="stat-label">Referencias</span><span class="stat-value" id="statReferencias">0</span></div>
       <div class="stat-card"><span class="stat-label">Unidades disponibles</span><span class="stat-value" id="statUnidades">0 L</span></div>
-      <div class="stat-card"><span class="stat-label">Valor del inventario</span><span class="stat-value" id="statValor">$0</span><span class="stat-note">a precio de venta</span></div>
-      <div class="stat-card"><span class="stat-label">Existencias bajas</span><span class="stat-value" id="statBajoStock">0</span><span class="stat-note">menos de 300 ml</span></div>
+      <div class="stat-card"><span class="stat-label">Valor del inventario</span><span class="stat-value" id="statValor">$0</span><span class="stat-note">lo que te costó el stock</span></div>
+      <button type="button" class="stat-card stat-btn" data-detail="bajo" aria-expanded="false"><span class="stat-label">Existencias bajas</span><span class="stat-value" id="statBajoStock">0</span><span class="stat-note">menos de 300 ml · ver lista</span></button>
     </div>
+
+    <div class="panel detail" id="statDetail" hidden></div>
 
     <div class="toolbar">
       <div class="search-field">
@@ -64,7 +66,7 @@
     <div class="grid-cards" id="inventoryGrid"></div>
     <div class="panel flush" id="inventoryTableWrap" hidden>
       <div class="table-wrap"><table>
-        <thead><tr><th>Nombre</th><th>Marca</th><th class="num">Existencias</th><th class="num">Costo / ml</th><th class="num">Venta / ml</th><th>Estado</th><th></th></tr></thead>
+        <thead><tr><th>Nombre</th><th>Marca</th><th class="num">Existencias</th><th class="num">Costo del stock</th><th>Estado</th><th></th></tr></thead>
         <tbody id="inventoryTableBody"></tbody>
       </table></div>
     </div>
@@ -77,12 +79,14 @@
         <div class="field"><label for="buscarVenta">Buscar perfume</label><input id="buscarVenta" type="text" placeholder="Escribe un nombre o marca…"></div>
         <div class="field"><label for="selPerfume">Perfume</label><select id="selPerfume"></select></div>
         <div class="field"><label for="mlVender">Cantidad a vender (ml)</label><input id="mlVender" type="number" min="1" step="1" placeholder="Ej. 50"></div>
+        <div class="field"><label for="precioVenta">Precio cobrado por esta venta (COP)</label><input id="precioVenta" type="text" inputmode="numeric" autocomplete="off" placeholder="Ej. $90.000"></div>
       </div>
       <aside class="panel resumen">
         <h3>Resumen de la operación</h3>
         <div class="resumen-row"><span>Perfume</span><b id="resPerfume">—</b></div>
         <div class="resumen-row"><span>Disponible</span><b id="resDisp">—</b></div>
         <div class="resumen-row"><span>Precio por ml</span><b id="resPrecio">$0</b></div>
+        <div class="resumen-row"><span>Ganancia estimada</span><b id="resGanancia">—</b></div>
         <div class="resumen-row"><span>Cantidad</span><b id="resCantidad">0 ml</b></div>
         <div class="resumen-row total"><span>Total</span><b id="estimateTotal">$0</b></div>
         <button class="btn btn-gold btn-block" id="registrarVenta">Confirmar venta</button>
@@ -133,10 +137,9 @@
     <div class="field"><label for="fMarca">Marca (opcional)</label><input id="fMarca" type="text" placeholder="Ej. Dior"></div>
     <div class="field-grid">
       <div class="field"><label for="fLitros">Mililitros disponibles (ml)</label><input id="fLitros" type="number" min="0" step="1" placeholder="Ej. 100"></div>
-      <div class="field"><label for="fPrecioVenta">Precio de venta por ml (COP)</label><input id="fPrecioVenta" type="number" min="0" step="1" placeholder="Ej. 1800"></div>
+      <div class="field"><label for="fPrecioCompra">Total pagado (COP)</label><input id="fPrecioCompra" type="text" inputmode="numeric" autocomplete="off" placeholder="Ej. $60.000"></div>
     </div>
     <div class="field-grid">
-      <div class="field"><label for="fPrecioCompra" id="lblCosto">Total pagado por esos ml (opcional)</label><input id="fPrecioCompra" type="number" min="0" step="1" placeholder="Ej. 60000"></div>
       <div class="field"><label for="fFoto">Foto (opcional)</label><input id="fFoto" type="file" accept="image/*"><div class="foto-prev" id="fFotoPrev" hidden><img alt="Vista previa"><button type="button" class="btn btn-ghost" id="fFotoQuitar">Quitar</button></div></div>
     </div>
     <p class="hint" id="fResumenStock"></p>
@@ -151,7 +154,7 @@
     <p class="sub" id="compraNombre"></p>
     <div class="field-grid">
       <div class="field"><label for="cMl">Mililitros comprados</label><input id="cMl" type="number" min="1" step="1" placeholder="Ej. 1000"></div>
-      <div class="field"><label for="cTotal">Total pagado (COP)</label><input id="cTotal" type="number" min="0" step="1" placeholder="Ej. 600000"></div>
+      <div class="field"><label for="cTotal">Total pagado (COP)</label><input id="cTotal" type="text" inputmode="numeric" autocomplete="off" placeholder="Ej. $600.000"></div>
     </div>
     <p class="hint" id="cResumen"></p>
     <div class="actions"><button class="btn btn-gold" id="compraSave">Registrar</button><button class="btn btn-ghost" id="compraCancel">Cancelar</button></div>

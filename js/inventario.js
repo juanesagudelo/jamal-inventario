@@ -5,7 +5,7 @@ import { db } from "./firebase.js";
 import {
   collection, addDoc, updateDoc, deleteDoc, doc, onSnapshot, query, orderBy, serverTimestamp
 } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-firestore.js";
-import { fmtCOP, fmtMl, escapeHtml, costoDe } from "./format.js";
+import { fmtCOP, fmtMl, escapeHtml, costoDe, moneyInput, parseMoney, fmtMoneyInput } from "./format.js";
 import { setSyncState } from "./ui.js";
 
 export const inventarioCol = collection(db, "inventario");
@@ -55,6 +55,7 @@ export function initInventario() {
   const tableWrap = $("inventoryTableWrap");
   const tbody = $("inventoryTableBody");
   let modo = "cards";
+  let detalle = null; // "valor" | "bajo" | null: panel desplegable bajo las estadísticas
   let editId = null;
   let deleteId = null;
   let fotoActual = "";
@@ -85,7 +86,7 @@ export function initInventario() {
   function renderStats() {
     $("statReferencias").textContent = inventario.length.toLocaleString("es-CO");
     $("statUnidades").textContent = fmtMl(inventario.reduce((s, p) => s + (p.ml || 0), 0)) + " ml";
-    $("statValor").textContent = fmtCOP(inventario.reduce((s, p) => s + (p.ml || 0) * (p.precioPorMl || 0), 0));
+    $("statValor").textContent = fmtCOP(inventario.reduce((s, p) => s + (p.ml || 0) * (costoDe(p) || 0), 0));
     $("statBajoStock").textContent = inventario.filter(p => p.ml < LOW_ML).length;
   }
 
@@ -106,6 +107,7 @@ export function initInventario() {
 
   function render() {
     renderStats();
+    renderDetalle();
     renderMarcas();
     const vacio = inventario.length === 0;
     const lista = filtrar();
@@ -137,8 +139,7 @@ export function initInventario() {
             <p class="brand-line">${p.marca ? escapeHtml(p.marca) : "&nbsp;"}</p>
             <dl>
               <div><dt>Existencias</dt><dd class="${e !== "disponible" ? "low" : ""}">${fmtMl(p.ml)} ml</dd></div>
-              <div><dt>Venta / ml</dt><dd>${fmtCOP(p.precioPorMl)}</dd></div>
-              ${costoDe(p) != null ? `<div><dt>Costo / ml</dt><dd>${fmtCOP(costoDe(p))}</dd></div>` : ""}
+              ${costoDe(p) != null ? `<div><dt>Costo del stock</dt><dd>${fmtCOP(Math.round(p.ml * costoDe(p)))}</dd></div>` : ""}
             </dl>
             ${acciones(p)}
           </div></article>`;
@@ -150,13 +151,32 @@ export function initInventario() {
         const e = estadoDe(p);
         return `<tr><td><b>${escapeHtml(p.nombre)}</b></td><td>${p.marca ? escapeHtml(p.marca) : "—"}</td>
           <td class="num">${fmtMl(p.ml)} ml</td>
-          <td class="num">${costoDe(p) != null ? fmtCOP(costoDe(p)) : "—"}</td>
-          <td class="num">${fmtCOP(p.precioPorMl)}</td>
+          <td class="num">${costoDe(p) != null ? fmtCOP(Math.round(p.ml * costoDe(p))) : "—"}</td>
           <td><span class="badge inline ${e}">${ESTADO_TXT[e]}</span></td><td>${acciones(p)}</td></tr>`;
       }).join("");
       grid.hidden = true;
     }
   }
+
+  function renderDetalle() {
+    const box = $("statDetail");
+    document.querySelectorAll(".stat-btn").forEach(b => b.setAttribute("aria-expanded", String(b.dataset.detail === detalle)));
+    if (detalle !== "bajo") { box.hidden = true; return; }
+    box.hidden = false;
+    const l = inventario.filter(p => p.ml < LOW_ML).sort((a, b) => a.ml - b.ml);
+    box.innerHTML = `<h3>Existencias bajas</h3>` + (l.length
+      ? `<ul class="detail-list">${l.map(p => {
+          const e = estadoDe(p);
+          return `<li><div><b>${escapeHtml(p.nombre)}</b>${p.marca ? `<small>${escapeHtml(p.marca)}</small>` : ""}</div>
+            <span class="num">${fmtMl(p.ml)} ml</span><span class="badge inline ${e}">${ESTADO_TXT[e]}</span>
+            <button class="icon-btn" data-act="buy" data-id="${p.id}" title="Registrar compra" aria-label="Registrar compra de ${escapeHtml(p.nombre)}">${ICON_BUY}</button></li>`;
+        }).join("")}</ul>`
+      : `<p class="sub">Todo tu inventario está por encima de ${LOW_ML} ml.</p>`);
+  }
+  document.querySelectorAll(".stat-btn").forEach(b => b.addEventListener("click", () => {
+    detalle = detalle === b.dataset.detail ? null : b.dataset.detail;
+    renderDetalle();
+  }));
 
   ["searchInventario", "filtroDisponibilidad", "filtroMarca"].forEach(id => {
     $(id).addEventListener(id === "searchInventario" ? "input" : "change", render);
@@ -177,7 +197,7 @@ export function initInventario() {
   });
 
   // ---------- Modal agregar / editar ----------
-  const campos = ["fNombre", "fMarca", "fLitros", "fPrecioVenta", "fPrecioCompra", "fFoto"];
+  const campos = ["fNombre", "fMarca", "fLitros", "fPrecioCompra", "fFoto"];
   const msgEl = (id, type, text) => { const el = $(id); el.hidden = !text; el.className = "msg " + type; el.textContent = text || ""; };
 
   function abrirModal(p = null) {
@@ -186,9 +206,7 @@ export function initInventario() {
     $("fNombre").value = p ? p.nombre : "";
     $("fMarca").value = p?.marca || "";
     $("fLitros").value = p ? p.ml : "";
-    $("fPrecioVenta").value = p ? p.precioPorMl : "";
-    $("fPrecioCompra").value = p && costoDe(p) != null ? Math.round(costoDe(p) * 100) / 100 : "";
-    $("lblCosto").textContent = p ? "Costo por ml (opcional)" : "Total pagado por esos ml (opcional)";
+    $("fPrecioCompra").value = p && costoDe(p) != null ? fmtMoneyInput(p.ml * costoDe(p)) : "";
     $("fFoto").value = "";
     fotoActual = p?.foto || "";
     pintarFoto(); pintarResumenStock();
@@ -199,11 +217,12 @@ export function initInventario() {
   function cerrarModal() { $("modalBackdrop").hidden = true; campos.forEach(id => ($(id).value = "")); editId = null; fotoActual = ""; pintarFoto(); pintarResumenStock(); }
   function pintarFoto() { const prev = $("fFotoPrev"); prev.hidden = !fotoActual; prev.querySelector("img").src = fotoActual; }
   function pintarResumenStock() {
-    const m = parseFloat($("fLitros").value), v = parseFloat($("fPrecioVenta").value);
-    $("fResumenStock").textContent = (m > 0 && v > 0) ? `Con ${fmtMl(m)} ml a ${fmtCOP(v)} por ml, este stock vale ${fmtCOP(m * v)} si se vende completo.` : "";
+    const m = parseFloat($("fLitros").value), v = parseMoney($("fPrecioCompra").value);
+    $("fResumenStock").textContent = (m > 0 && v > 0) ? `Cada ml te cuesta ${fmtCOP(v / m)}.` : "";
   }
   $("fLitros").addEventListener("input", pintarResumenStock);
-  $("fPrecioVenta").addEventListener("input", pintarResumenStock);
+  moneyInput($("fPrecioCompra"));
+  $("fPrecioCompra").addEventListener("input", pintarResumenStock);
   $("fFotoQuitar").addEventListener("click", () => { fotoActual = ""; $("fFoto").value = ""; pintarFoto(); });
   $("fFoto").addEventListener("change", async () => {
     const f = $("fFoto").files[0];
@@ -219,21 +238,19 @@ export function initInventario() {
   $("modalSave").addEventListener("click", async () => {
     const nombre = $("fNombre").value.trim();
     const mlIn = parseFloat($("fLitros").value);
-    const precio = parseFloat($("fPrecioVenta").value);
-    const compraRaw = $("fPrecioCompra").value.trim();
-    const compra = compraRaw === "" ? null : parseFloat(compraRaw);
+    const compra = parseMoney($("fPrecioCompra").value);
     const url = fotoActual;
 
-    if (!nombre || isNaN(mlIn) || mlIn < 0 || isNaN(precio) || precio < 0) {
-      return msgEl("modalMsg", "err", "Completa nombre, mililitros y precio de venta con valores válidos.");
+    if (!nombre || isNaN(mlIn) || mlIn < 0 || isNaN(compra) || compra < 0) {
+      return msgEl("modalMsg", "err", "Completa nombre, mililitros y el valor pagado.");
     }
-    if (compra !== null && (isNaN(compra) || compra < 0)) return msgEl("modalMsg", "err", "El precio de compra no es válido.");
+    if (!editId && mlIn <= 0) return msgEl("modalMsg", "err", "Ingresa los ml que compraste.");
 
     const data = {
       nombre, marca: $("fMarca").value.trim(), ml: Math.round(mlIn),
-      precioPorMl: Math.round(precio), foto: url,
-      costoPromedioPorMl: compra === null ? null : editId ? compra : (mlIn > 0 ? compra / mlIn : null)
+      foto: url
     };
+    if (mlIn > 0) data.costoPromedioPorMl = compra / mlIn;
     $("modalSave").disabled = true;
     try {
       if (editId) await updateDoc(doc(db, "inventario", editId), data);

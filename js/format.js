@@ -29,5 +29,15 @@ export function escapeHtml(s) {
 
 // Costo por ml de un perfume (promedio de sus compras); null si no se ha registrado.
 export function costoDe(p) {
-  return p.costoPromedioPorMl ?? p.precioCompraPorMl ?? null;
+  return p.costoPromedioPorMl ?? null;
+}
+
+// ---- Campos de dinero: se escriben como $30.000 y se leen como número ----
+export const parseMoney = v => parseInt(String(v ?? "").replace(/\D/g, ""), 10);
+export const fmtMoneyInput = n => (n == null || isNaN(n) ? "" : "$" + Math.round(n).toLocaleString("es-CO"));
+export function moneyInput(el) {
+  el.addEventListener("input", () => {
+    const d = el.value.replace(/\D/g, "");
+    el.value = d ? "$" + Number(d).toLocaleString("es-CO") : "";
+  });
 }
